@@ -1,5 +1,8 @@
 using System;
 using System.Drawing;
+using System.Collections.Concurrent;
+using Windows.Devices.Bluetooth;
+using Windows.Devices.Enumeration;
 using System.Windows.Forms;
 
 
@@ -8,8 +11,8 @@ namespace AnimalHomeGame_CSharp;
 
 public partial class MainForm : Form
 {
-        private Panel signInPanel;
-        private Panel signUpPanel;
+        private System.Windows.Forms.Panel signInPanel;
+        private System.Windows.Forms.Panel signUpPanel;
 
         private Label statusLabel;
         private TextBox nameTextBox;
@@ -17,10 +20,69 @@ public partial class MainForm : Form
         private Button scanButton;
         private Button registerButton;
 
+        private DeviceWatcher deviceWatcher;
+        private ConcurrentDictionary<string, DeviceInformation> discoveredDevices = new();
+
         public MainForm()
         {
             InitializeComponent();
             SetupGUI();
+            SetupBluetoothWatcher();
+        }
+
+        private void SetupBluetoothWatcher()
+        {
+            string[] requestedProperties = { "System.ItemNameDisplay", "System.Devices.Aep.DeviceAddress", "System.Devices.Aep.IsConnected" };
+            
+            deviceWatcher = DeviceInformation.CreateWatcher(
+                "(System.Devices.Aep.ProtocolId:=\"{e0cbf06c-cd8b-4647-bb8a-263b43f0f974}\")",
+                requestedProperties,
+                DeviceInformationKind.AssociationEndpoint);
+
+            deviceWatcher.Added += DeviceWatcher_Added;
+            deviceWatcher.Updated += DeviceWatcher_Updated;
+            deviceWatcher.Removed += DeviceWatcher_Removed;
+        }
+
+        private void DeviceWatcher_Added(DeviceWatcher sender, DeviceInformation deviceInfo)
+        {
+            if (string.IsNullOrWhiteSpace(deviceInfo.Name)) return;
+            if (discoveredDevices.TryAdd(deviceInfo.Id, deviceInfo))
+            {
+                UpdateDeviceList();
+            }
+        }
+
+        private void DeviceWatcher_Updated(DeviceWatcher sender, DeviceInformationUpdate deviceInfoUpdate)
+        {
+            if (discoveredDevices.TryGetValue(deviceInfoUpdate.Id, out DeviceInformation deviceInfo))
+            {
+                deviceInfo.Update(deviceInfoUpdate);
+                UpdateDeviceList();
+            }
+        }
+
+        private void DeviceWatcher_Removed(DeviceWatcher sender, DeviceInformationUpdate deviceInfoUpdate)
+        {
+            if (discoveredDevices.TryRemove(deviceInfoUpdate.Id, out _))
+            {
+                UpdateDeviceList();
+            }
+        }
+
+        private void UpdateDeviceList()
+        {
+            if (this.InvokeRequired)
+            {
+                this.Invoke(new Action(UpdateDeviceList));
+                return;
+            }
+
+            deviceListBox.Items.Clear();
+            foreach (var device in discoveredDevices.Values)
+            {
+                deviceListBox.Items.Add($"{device.Name} ({device.Id})");
+            }
         }
 
         private void SetupGUI()
@@ -32,8 +94,8 @@ public partial class MainForm : Form
             this.BackColor = Color.WhiteSmoke;
 
            
-            signInPanel = new Panel { Dock = DockStyle.Fill };
-            signUpPanel = new Panel { Dock = DockStyle.Fill, Visible = false }; // Hidden by default
+            signInPanel = new System.Windows.Forms.Panel { Dock = DockStyle.Fill };
+            signUpPanel = new System.Windows.Forms.Panel { Dock = DockStyle.Fill, Visible = false }; // Hidden by default
 
             BuildSignInScreen();
             BuildSignUpScreen();
@@ -70,6 +132,22 @@ public partial class MainForm : Form
             nameTextBox = new TextBox { Font = new Font("Segoe UI", 12), Size = new Size(300, 30), Location = new Point(280, 127) };
 
             scanButton = new Button { Text = "Scan for Devices", Font = new Font("Segoe UI", 12), Size = new Size(430, 40), Location = new Point(150, 180), Cursor = Cursors.Hand };
+            scanButton.Click += (sender, e) => {
+                discoveredDevices.Clear();
+                deviceListBox.Items.Clear();
+                if (deviceWatcher == null) return;
+                
+                if (deviceWatcher.Status != DeviceWatcherStatus.Started)
+                {
+                    deviceWatcher.Start();
+                    scanButton.Text = "Scanning... (Click to Stop)";
+                }
+                else
+                {
+                    deviceWatcher.Stop();
+                    scanButton.Text = "Scan for Devices";
+                }
+            };
             
             deviceListBox = new ListBox { Font = new Font("Segoe UI", 10), Size = new Size(430, 150), Location = new Point(150, 240) };
 
@@ -83,6 +161,37 @@ public partial class MainForm : Form
                 signInPanel.Visible = true;
                 deviceListBox.Items.Clear(); 
                 nameTextBox.Clear();
+                if (deviceWatcher != null && (deviceWatcher.Status == DeviceWatcherStatus.Started || deviceWatcher.Status == DeviceWatcherStatus.EnumerationCompleted))
+                {
+                    deviceWatcher.Stop();
+                    scanButton.Text = "Scan for Devices";
+                }
+            };
+
+            registerButton.Click += (sender, e) => {
+                if (string.IsNullOrWhiteSpace(nameTextBox.Text))
+                {
+                    MessageBox.Show("Please enter a player name.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+                
+                if (deviceListBox.SelectedIndex == -1)
+                {
+                    MessageBox.Show("Please select a Bluetooth device to register with your profile.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                string selectedDevice = deviceListBox.SelectedItem.ToString();
+                
+                if (deviceWatcher.Status == DeviceWatcherStatus.Started)
+                {
+                    deviceWatcher.Stop();
+                    scanButton.Text = "Scan for Devices";
+                }
+
+                MessageBox.Show($"Successfully registered '{nameTextBox.Text}' with device:\n{selectedDevice}", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                
+                cancelBtn.PerformClick();
             };
 
             signUpPanel.Controls.Add(titleLabel);
