@@ -52,7 +52,6 @@ public partial class MainForm : Form
             Padding = new Padding(20)
         };
         
-        // Add them to the form (order matters for DockStyle: added last fills remaining space)
         this.Controls.Add(instructionsLabel);
         this.Controls.Add(statusLabel);
     }
@@ -138,8 +137,8 @@ public partial class MainForm : Form
         {
             timer.Stop();
             
-            GameForm gameForm = new GameForm(activeProfile);
-            gameForm.Show();
+            GamePlayForm gamePlayForm = new GamePlayForm(activeProfile, this);
+            gamePlayForm.Show();
             this.Hide();
         };
         timer.Start();

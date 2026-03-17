@@ -23,7 +23,6 @@ public partial class GameForm : Form
         this.BackColor = Color.WhiteSmoke;
         this.FormClosed += GameForm_FormClosed;
 
-        // Header Panel
         Panel headerPanel = new Panel
         {
             Dock = DockStyle.Top,
@@ -44,14 +43,12 @@ public partial class GameForm : Form
         headerPanel.Controls.Add(welcomeLabel);
         this.Controls.Add(headerPanel);
 
-        // Main Controls Panel
         Panel controlsPanel = new Panel
         {
             Dock = DockStyle.Fill,
             Padding = new Padding(50)
         };
 
-        // Shared Button: Play Game
         Button playButton = new Button
         {
             Text = "Play Game",
@@ -61,9 +58,20 @@ public partial class GameForm : Form
             Location = new Point(250, 50),
             Cursor = Cursors.Hand
         };
-        playButton.Click += (s, e) => MessageBox.Show("Starting Game...", "Play");
+        playButton.Click += (s, e) => 
+        {
+            MainForm? mainForm = null;
+            foreach (Form f in Application.OpenForms)
+                if (f is MainForm mf) { mainForm = mf; break; }
 
-        // Shared Button: Logout
+            if (mainForm != null)
+            {
+                GamePlayForm gamePlay = new GamePlayForm(currentUser, mainForm);
+                gamePlay.Show();
+                this.Hide();
+            }
+        };
+
         Button logoutButton = new Button
         {
             Text = "Logout & Switch User",
@@ -78,7 +86,6 @@ public partial class GameForm : Form
         controlsPanel.Controls.Add(playButton);
         controlsPanel.Controls.Add(logoutButton);
 
-        // Admin Exclusive Buttons
         if (currentUser.Role == "Admin")
         {
             Button viewStatsButton = new Button
@@ -125,8 +132,6 @@ public partial class GameForm : Form
 
     private void GameForm_FormClosed(object? sender, FormClosedEventArgs e)
     {
-        // When GameForm closes, ensure we show the scanner MainForm again.
-        // We find the open MainForm and unhide it.
         foreach (Form form in Application.OpenForms)
         {
             if (form is MainForm mainForm)
@@ -138,7 +143,6 @@ public partial class GameForm : Form
         }
     }
 
-    // Required designer variable
     private System.ComponentModel.IContainer components = null;
 
     protected override void Dispose(bool disposing)
@@ -153,9 +157,6 @@ public partial class GameForm : Form
     private void InitializeComponent()
     {
         this.SuspendLayout();
-        // 
-        // GameForm
-        // 
         this.ClientSize = new System.Drawing.Size(284, 261);
         this.Name = "GameForm";
         this.ResumeLayout(false);
