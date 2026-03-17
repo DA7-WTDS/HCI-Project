@@ -102,8 +102,11 @@ public partial class MainForm : Form
         
         UserProfile? existingProfile = profiles.FirstOrDefault(p => p.BluetoothDeviceId == deviceInfo.Id);
 
+        UserProfile activeProfile = null;
+
         if (existingProfile != null)
         {
+            activeProfile = existingProfile;
             statusLabel.Text = $"Welcome back, {existingProfile.PlayerName}!";
             instructionsLabel.Text = $"Automatic Sign-In Successful.\nYour Role: {existingProfile.Role}\n\nGetting everything ready for you...";
             statusLabel.ForeColor = Color.Green;
@@ -123,6 +126,7 @@ public partial class MainForm : Form
             profiles.Add(newProfile);
             ProfileManager.SaveProfiles(profiles);
 
+            activeProfile = newProfile;
             statusLabel.Text = $"Account Created for {newProfile.PlayerName}!";
             instructionsLabel.Text = $"Automatic Sign-Up Successful.\nYour Role: {newProfile.Role}\n\nGetting everything ready for you...";
             statusLabel.ForeColor = Color.Blue;
@@ -133,8 +137,26 @@ public partial class MainForm : Form
         timer.Tick += (s, args) => 
         {
             timer.Stop();
-            MessageBox.Show($"Proceeding to the game as {existingProfile?.Role ?? profiles.Last().Role}...", "Game Start");
+            
+            GameForm gameForm = new GameForm(activeProfile);
+            gameForm.Show();
+            this.Hide();
         };
         timer.Start();
+    }
+
+    public void ResetScanner()
+    {
+        isAuthenticated = false;
+        
+        statusLabel.Text = "Scanning for your Bluetooth device...";
+        statusLabel.ForeColor = Color.DimGray;
+        instructionsLabel.Text = "How it works:\n\n1. Make sure your phone or device's Bluetooth is turned ON and is 'Discoverable'.\n2. Keep your device nearby.\n3. We will automatically detect you!\n\nIf you are new, we will instantly create your profile.\nIf you are returning, you will be logged right in.";
+        instructionsLabel.ForeColor = Color.DarkSlateGray;
+
+        if (deviceWatcher != null && deviceWatcher.Status != DeviceWatcherStatus.Started)
+        {
+            deviceWatcher.Start();
+        }
     }
 }
